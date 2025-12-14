@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DOGE</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="app">
+    <canvas id="game" width="800" height="500"></canvas>
+
+    <!-- UI Layer: 不吃 canvas 縮放，字一定清楚 -->
+    <div id="ui">
+      <div id="panel-menu" class="panel">
+        <div class="title">DOGE</div>
+        <div class="hint">Press Enter to Start</div>
+
+        <div class="row">
+          <label>Name</label>
+          <input id="nameInput" maxlength="12" placeholder="Player" />
+        </div>
+
+        <div class="row buttons">
+          <button id="startBtn">Start</button>
+        </div>
+
+        <div class="lb">
+          <div class="lb-title">Leaderboard</div>
+          <div class="lb-cols">
+            <div>
+              <div class="lb-sub">Top 5 (Longest)</div>
+              <ol id="bestList"></ol>
+            </div>
+            <div>
+              <div class="lb-sub">Top 5 (Shortest)</div>
+              <ol id="worstList"></ol>
+            </div>
+          </div>
+
+          <div class="stats">
+            <div id="gamesPlayed"></div>
+            <div id="avgTime"></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="panel-countdown" class="panel hidden">
+        <div id="countText" class="count">3</div>
+      </div>
+
+      <div id="panel-playing" class="panel hidden">
+        <div class="hud">
+          <div id="timeText">Time: 0.00s</div>
+        </div>
+      </div>
+
+      <div id="panel-gameover" class="panel hidden">
+        <div class="title">GAME OVER</div>
+        <div class="bigline">
+          <span id="finalTime" class="huge">0.00</span>
+          <span class="sec">seconds</span>
+        </div>
+        <div id="killedBy" class="killed">Kill by ???</div>
+        <div id="record" class="record hidden">RECORD BREAKING</div>
+        <div class="hint">Press Enter to Restart</div>
+
+        <div class="lb">
+          <div class="lb-title">Leaderboard</div>
+          <div class="lb-cols">
+            <div>
+              <div class="lb-sub">Top 5 (Longest)</div>
+              <ol id="bestList2"></ol>
+            </div>
+            <div>
+              <div class="lb-sub">Top 5 (Shortest)</div>
+              <ol id="worstList2"></ol>
+            </div>
+          </div>
+          <div class="stats">
+            <div id="gamesPlayed2"></div>
+            <div id="avgTime2"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="main.js"></script>
+</body>
+</html>

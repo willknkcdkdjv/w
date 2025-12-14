@@ -7,7 +7,7 @@
   const FPS_CAP = 120;
 
   const PLAYER_W = 50, PLAYER_H = 50;
-  const PLAYER_SPEED = 20;
+  const PLAYER_SPEED = 25;
 
   const BASE_SPAWN_MS = 950;
   const MIN_SPAWN_MS = 150;
@@ -27,8 +27,8 @@
 
   const AI_PROFILES = {
     dumb:    { track_factor: 0.001, fall_min: 8,  fall_max: 8,  color: "#b4b4b4", dx_cap: 1  },
-    papapig: { track_factor: 0.14,  fall_min: 15, fall_max: 20, color: "#ff78b4", dx_cap: 20 },
-    thanose: { track_factor: 0.10,  fall_min: 25, fall_max: 28, color: "#8c00ff", dx_cap: 15  },
+    papapig: { track_factor: 0.17,  fall_min: 15, fall_max: 18, color: "#ff78b4", dx_cap: 24 },
+    thanose: { track_factor: 0.10,  fall_min: 23, fall_max: 25, color: "#8c00ff", dx_cap: 15  },
     sniper:  { track_factor: 0.01,  fall_min: 40, fall_max: 40, color: "#ff5050", dx_cap: 3  },
   };
   const PROFILE_POP = ["dumb", "papapig", "thanose", "sniper"];

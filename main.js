@@ -28,7 +28,7 @@
   const AI_PROFILES = {
     dumb:    { track_factor: 0.001, fall_min: 8,  fall_max: 8,  color: "#b4b4b4", dx_cap: 1  },
     papapig: { track_factor: 0.17,  fall_min: 15, fall_max: 18, color: "#ff78b4", dx_cap: 24 },
-    thanose: { track_factor: 0.10,  fall_min: 23, fall_max: 25, color: "#8c00ff", dx_cap: 15  },
+    thanose: { track_factor: 0.13,  fall_min: 23, fall_max: 25, color: "#8c00ff", dx_cap: 15  },
     sniper:  { track_factor: 0.01,  fall_min: 40, fall_max: 40, color: "#ff5050", dx_cap: 3  },
   };
   const PROFILE_POP = ["dumb", "papapig", "thanose", "sniper"];

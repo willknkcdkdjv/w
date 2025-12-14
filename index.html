@@ -10,7 +10,6 @@
   <div id="app">
     <canvas id="game" width="800" height="500"></canvas>
 
-    <!-- UI Layer: 不吃 canvas 縮放，字一定清楚 -->
     <div id="ui">
       <div id="panel-menu" class="panel">
         <div class="title">DOGE</div>
@@ -37,7 +36,6 @@
               <ol id="worstList"></ol>
             </div>
           </div>
-
           <div class="stats">
             <div id="gamesPlayed"></div>
             <div id="avgTime"></div>
@@ -86,6 +84,63 @@
     </div>
   </div>
 
-  <script src="main.js"></script>
+  <!-- ================= Firebase (一定要先跑) ================= -->
+  <script type="module">
+    console.log("firebase module script start");
+
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
+    import {
+      getFirestore,
+      collection,
+      addDoc,
+      query,
+      orderBy,
+      limit,
+      getDocs,
+      serverTimestamp
+    } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+
+    // ⚠️ 換成你 Firebase Console 給你的「真的 config」
+    const firebaseConfig = {
+    apiKey: "AIzaSyCb5w8jk77GnaeC9YnZcI6lfwObEXB9nN8",
+    authDomain: "doge-9ba16.firebaseapp.com",
+    projectId: "doge-9ba16",
+    storageBucket: "doge-9ba16.firebasestorage.app",
+    messagingSenderId: "353763869004",
+    appId: "1:353763869004:web:3410452212d77e893acfe9",
+    measurementId: "G-CWDG44YNQ9"
+     };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const scoresCol = collection(db, "scores");
+
+    async function submitScore({ name, time, killedBy }) {
+      await addDoc(scoresCol, {
+        name,
+        time,
+        killedBy,
+        createdAt: serverTimestamp(),
+      });
+    }
+
+    async function fetchTop(n = 5) {
+      const q = query(scoresCol, orderBy("time", "desc"), limit(n));
+      const snap = await getDocs(q);
+      return snap.docs.map(d => d.data());
+    }
+
+    async function fetchBottom(n = 5) {
+      const q = query(scoresCol, orderBy("time", "asc"), limit(n));
+      const snap = await getDocs(q);
+      return snap.docs.map(d => d.data());
+    }
+
+    window.fbscores = { submitScore, fetchTop, fetchBottom };
+    console.log("firebase ready", window.fbscores);
+  </script>
+
+  <!-- ================= Game logic（延後，確保 Firebase 已存在） ================= -->
+  <script defer src="main.js"></script>
 </body>
 </html>

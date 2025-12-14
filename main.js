@@ -26,9 +26,9 @@
   };
 
   const AI_PROFILES = {
-    dumb:    { track_factor: 0.001, fall_min: 5,  fall_max: 5,  color: "#b4b4b4", dx_cap: 1  },
-    papapig: { track_factor: 0.11,  fall_min: 15, fall_max: 20, color: "#ff78b4", dx_cap: 20 },
-    thanose: { track_factor: 0.08,  fall_min: 25, fall_max: 28, color: "#8c00ff", dx_cap: 15  },
+    dumb:    { track_factor: 0.001, fall_min: 8,  fall_max: 8,  color: "#b4b4b4", dx_cap: 1  },
+    papapig: { track_factor: 0.14,  fall_min: 15, fall_max: 20, color: "#ff78b4", dx_cap: 20 },
+    thanose: { track_factor: 0.10,  fall_min: 25, fall_max: 28, color: "#8c00ff", dx_cap: 15  },
     sniper:  { track_factor: 0.01,  fall_min: 40, fall_max: 40, color: "#ff5050", dx_cap: 3  },
   };
   const PROFILE_POP = ["dumb", "papapig", "thanose", "sniper"];
@@ -118,6 +118,7 @@
   const LS_KEY = "doge_leaderboard_v1";
   const LS_META = "doge_meta_v1"; // gamesPlayed / totalTime
 
+
   let leaderboard = []; // [{name,time}]
   let gamesPlayed = 0;
   let totalTime = 0;
@@ -178,6 +179,36 @@
 
   loadScores();
   renderLeaderboard();
+  refreshCloudLeaderboard(); // ✅ 進站先拉一次雲端排行榜
+
+  async function refreshCloudLeaderboard() {
+  if (!window.fbscores) return;
+
+  try {
+    const [best5, worst5] = await Promise.all([
+      window.fbscores.fetchTop(5),
+      window.fbscores.fetchBottom(5),
+    ]);
+
+    function fillList(ol, rows) {
+      ol.innerHTML = "";
+      for (const r of rows) {
+        const li = document.createElement("li");
+        const nm = (r.name || "Player").slice(0, 12);
+        const tm = (typeof r.time === "number") ? r.time : 0;
+        li.textContent = `${nm}  ${tm.toFixed(2)}s`;
+        ol.appendChild(li);
+      }
+    }
+
+    fillList(bestList, best5);
+    fillList(worstList, worst5);
+    fillList(bestList2, best5);
+    fillList(worstList2, worst5);
+  } catch (e) {
+    console.warn("Cloud leaderboard failed, fallback to local.", e);
+  }
+}
 
   // =========================
   // Game State
@@ -434,6 +465,15 @@
         const name = (nameInput.value || "").trim() || "Player";
         pushScore(name, finalSurvivalSec);
         renderLeaderboard();
+
+        // ✅ 寫入雲端 + 重新拉榜
+        if (window.fbscores) {
+          window.fbscores.submitScore({
+            name,
+            time: finalSurvivalSec,
+            killedBy: finalKilledBy,
+          }).then(refreshCloudLeaderboard).catch(console.warn);
+        }
 
         // update gameover UI
         finalTimeEl.textContent = finalSurvivalSec.toFixed(2);

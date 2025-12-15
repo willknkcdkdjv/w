@@ -21,7 +21,12 @@
         </div>
 
         <div class="row">
-          <label>Name (Password)</label>
+          <label>Password</label>
+          <input id="passwordInput" type="password" placeholder="Your password" />
+        </div>
+
+        <div class="row">
+          <label>Name</label>
           <input id="loginNameInput" maxlength="12" placeholder="Player" />
         </div>
 
@@ -111,19 +116,15 @@
 
   <!-- ================= Firebase (一定要先跑) ================= -->
   <script type="module">
-    console.log("firebase module script start");
-
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
-    import {
-      getFirestore,
-      collection,
-      addDoc,
-      query,
-      orderBy,
-      limit,
-      getDocs,
-      serverTimestamp
-    } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
+  import {
+    getFirestore, collection, addDoc, query, orderBy, limit, getDocs,
+    serverTimestamp, doc, runTransaction, getDoc
+  } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+  import {
+    getAuth, onAuthStateChanged, createUserWithEmailAndPassword,
+    signInWithEmailAndPassword, updateProfile, signOut
+  } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
 
     // ⚠️ 換成你 Firebase Console 給你的「真的 config」
     const firebaseConfig = {
@@ -137,35 +138,85 @@
      };
 
     const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
-    const scoresCol = collection(db, "scores");
+  const db = getFirestore(app);
+  const auth = getAuth(app);
 
-    async function submitScore({ name, time, killedBy }) {
-      await addDoc(scoresCol, {
-        name,
-        time,
-        killedBy,
-        createdAt: serverTimestamp(),
-      });
+  // ---------- Public leaderboard ----------
+  const scoresCol = collection(db, "scores");
+
+  async function submitScore({ uid, name, time, killedBy }) {
+    await addDoc(scoresCol, {
+      uid,
+      name,
+      time,
+      killedBy,
+      createdAt: serverTimestamp(),
+    });
+  }
+
+  async function fetchTop(n = 5) {
+    const q = query(scoresCol, orderBy("time", "desc"), limit(n));
+    const snap = await getDocs(q);
+    return snap.docs.map(d => d.data());
+  }
+
+  async function fetchBottom(n = 5) {
+    const q = query(scoresCol, orderBy("time", "asc"), limit(n));
+    const snap = await getDocs(q);
+    return snap.docs.map(d => d.data());
+  }
+
+  // ---------- Per-user stats (uid) ----------
+  function statsRef(uid) {
+    return doc(db, "userStats", uid);
+  }
+
+  async function readMyStats(uid) {
+    const snap = await getDoc(statsRef(uid));
+    if (!snap.exists()) return { gamesPlayed: 0, totalTime: 0, bestTime: 0 };
+    return snap.data();
+  }
+
+  async function updateMyStats(uid, timeSec) {
+    const ref = statsRef(uid);
+    await runTransaction(db, async (tx) => {
+      const snap = await tx.get(ref);
+      const cur = snap.exists() ? snap.data() : { gamesPlayed: 0, totalTime: 0, bestTime: 0 };
+
+      const nextGames = (cur.gamesPlayed || 0) + 1;
+      const nextTotal = (cur.totalTime || 0) + timeSec;
+      const nextBest  = Math.max((cur.bestTime || 0), timeSec);
+
+      tx.set(ref, {
+        gamesPlayed: nextGames,
+        totalTime: nextTotal,
+        bestTime: nextBest,
+        updatedAt: serverTimestamp(),
+      }, { merge: true });
+    });
+  }
+
+  // ---------- Auth API ----------
+  async function loginOrRegister({ email, password, displayName }) {
+    try {
+      const cred = await signInWithEmailAndPassword(auth, email, password);
+      return cred.user;
+    } catch (e) {
+      // 沒帳號就註冊（正式產品通常會分開按鈕，這裡走 MVP）
+      const cred = await createUserWithEmailAndPassword(auth, email, password);
+      if (displayName) await updateProfile(cred.user, { displayName });
+      return cred.user;
     }
+  }
 
-    async function fetchTop(n = 5) {
-      const q = query(scoresCol, orderBy("time", "desc"), limit(n));
-      const snap = await getDocs(q);
-      return snap.docs.map(d => d.data());
-    }
+  async function logout() {
+    await signOut(auth);
+  }
 
-    async function fetchBottom(n = 5) {
-      const q = query(scoresCol, orderBy("time", "asc"), limit(n));
-      const snap = await getDocs(q);
-      return snap.docs.map(d => d.data());
-    }
+  window.fbauth = { auth, onAuthStateChanged, loginOrRegister, logout };
+  window.fbscores = { submitScore, fetchTop, fetchBottom, readMyStats, updateMyStats };
+</script>
 
-    window.fbscores = { submitScore, fetchTop, fetchBottom };
-    console.log("firebase ready", window.fbscores);
-  </script>
-
-  <!-- ================= Game logic（延後，確保 Firebase 已存在） ================= -->
-  <script src="main.js"></script>
+<script src="main.js"></script>
 </body>
 </html>

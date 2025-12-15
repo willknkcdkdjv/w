@@ -11,7 +11,27 @@
     <canvas id="game" width="800" height="500"></canvas>
 
     <div id="ui">
-      <div id="panel-menu" class="panel">
+      <div id="panel-login" class="panel">
+        <div class="title">LOGIN</div>
+        <div class="hint">Email + Name (Name is the password)</div>
+
+        <div class="row">
+          <label>Email</label>
+          <input id="emailInput" type="email" placeholder="you@example.com" />
+        </div>
+
+        <div class="row">
+          <label>Name (Password)</label>
+          <input id="loginNameInput" maxlength="12" placeholder="Player" />
+        </div>
+
+        <div class="row buttons">
+          <button id="loginBtn">Login</button>
+        </div>
+
+        <div id="loginError" class="hint" style="color:#c00; display:none;"></div>
+      </div>
+      <div id="panel-menu" class="panel hidden">
         <div class="title">DOGE</div>
         <div class="hint">Press Enter to Start</div>
         <div class="hint small">Controls: A / D or ← → to dodge</div>
@@ -38,6 +58,8 @@
             </div>
           </div>
           <div class="stats">
+            <div id="accountName"></div>
+            <div id="bestTime"></div>
             <div id="gamesPlayed"></div>
             <div id="avgTime"></div>
           </div>
@@ -77,6 +99,8 @@
             </div>
           </div>
           <div class="stats">
+            <div id="accountName2"></div>
+            <div id="bestTime2"></div>
             <div id="gamesPlayed2"></div>
             <div id="avgTime2"></div>
           </div>

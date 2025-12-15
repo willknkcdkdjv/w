@@ -261,7 +261,7 @@
 
   async function doLogin() {
     if (!window.fbauth?.loginOrRegister) {
-      return setLoginError("Firebase Auth not initialized (check index.html module script).");
+      //return setLoginError("Firebase Auth not initialized (check index.html module script).");
     }
 
     const email = (emailInput?.value || "").trim().toLowerCase();
@@ -281,21 +281,13 @@
   }
 
   function bootAuthGate() {
-    if (!window.fbauth?.onAuthStateChanged || !window.fbauth?.auth) {
-      setLoginError("Firebase Auth not initialized (check index.html module script).");
+  window.fbauth.onAuthStateChanged(window.fbauth.auth, (user) => {
+    if (user) enterMenuWithFirebaseUser(user);
+    else {
       state = STATE.LOGIN;
       showPanel(STATE.LOGIN);
-      return;
     }
-
-    window.fbauth.onAuthStateChanged(window.fbauth.auth, (user) => {
-      if (user) enterMenuWithFirebaseUser(user);
-      else {
-        currentUser = null;
-        state = STATE.LOGIN;
-        showPanel(STATE.LOGIN);
-      }
-    });
+  });
   }
 
   // Login events

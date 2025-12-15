@@ -414,21 +414,11 @@
   // Main loop
   // =========================
   let lastFrame = 0;
+
   function loop(ts) {
     requestAnimationFrame(loop);
 
-    if (lastFrame) {
-      const dt = ts - lastFrame;
-      if (dt < (1000 / FPS_CAP)) return;
-    }
-    lastFrame = ts;
-
-    ctx.fillStyle = COLORS.WHITE;
-    ctx.fillRect(0, 0, VIEW_W, VIEW_H);
-
-    if (state === STATE.LOGIN || state === STATE.MENU) return;
-
-    // COUNTDOWN
+    // ✅ 先處理 COUNTDOWN（不要被 FPS cap 擋住）
     if (state === STATE.COUNTDOWN) {
       if (countdownStartMs == null) countdownStartMs = ts;
 
@@ -438,13 +428,29 @@
         resetGame(ts);
         state = STATE.PLAYING;
         showPanel(STATE.PLAYING);
+        // 不 return，讓畫面可以立即刷新成 playing 的白底
+      } else {
+        const txt = (remain <= 0.5) ? "GO" : String(Math.ceil(remain)); // ✅ 2 → 1 → GO
+        if (countText) countText.textContent = txt;
+        // countdown 狀態下，直接畫白底就好
+        ctx.fillStyle = COLORS.WHITE;
+        ctx.fillRect(0, 0, VIEW_W, VIEW_H);
         return;
       }
-
-      const txt = (remain <= 0.5) ? "GO" : String(Math.ceil(remain)); // ✅ 2 -> 1 -> GO
-      if (countText) countText.textContent = txt;
-      return;
     }
+
+    // ✅ FPS cap（放在倒數後面）
+    if (lastFrame) {
+      const dt = ts - lastFrame;
+      if (dt < (1000 / FPS_CAP)) return;
+    }
+    lastFrame = ts;
+
+    // clear
+    ctx.fillStyle = COLORS.WHITE;
+    ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+
+    if (state === STATE.LOGIN || state === STATE.MENU) return;
 
     // PLAYING
     if (state === STATE.PLAYING) {
@@ -478,7 +484,6 @@
           if (t < e.warning_ms) {
             const phase = Math.floor(t / (e.warning_ms / 4));
             const on = (phase % 2 === 0);
-
             if (on) {
               const baseY = 40;
               const shake = Math.sin((t / 1000) * (2 * Math.PI * 10)) * 8;
@@ -535,7 +540,6 @@
         }
         if (recordEl) recordEl.classList.toggle("hidden", !recordBreaking);
 
-        // Cloud write: scores + userStats
         if (currentUser?.uid && window.fbscores?.submitScore && window.fbscores?.updateMyStats) {
           const name = currentUser.name || "Player";
 
@@ -561,8 +565,6 @@
 
       return;
     }
-
-    // GAMEOVER
     if (state === STATE.GAMEOVER) return;
   }
 

@@ -13,8 +13,9 @@
   const MIN_SPAWN_MS = 150;
 
   const ENEMY_SIZE = 60;
-
   const NO_SNIPER_FIRST_SEC = 5;
+
+  // ✅ countdown only: 2 → 1 → GO
   const COUNTDOWN_SEC = 2;
 
   const COLORS = {
@@ -138,7 +139,8 @@
   }
 
   function aabbHit(a, b) {
-    return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+    return a.x < b.x + b.w && a.x + a.w > b.x &&
+           a.y < b.y + b.h && a.y + a.h > b.y;
   }
 
   function randInt(lo, hi) {
@@ -169,9 +171,13 @@
 
   function drawBlock(xL, yL, wL, hL, color) {
     const x = vx(xL), y = vy(yL), w = vw(wL), h = vh(hL);
+
+    // shadow
     ctx.fillStyle = "rgba(0,0,0,0.12)";
     roundRect(ctx, x + 3, y + 3, w, h, 10);
     ctx.fill();
+
+    // block
     ctx.fillStyle = color;
     roundRect(ctx, x, y, w, h, 10);
     ctx.fill();
@@ -181,13 +187,15 @@
   // Firebase-backed account
   // =========================
   let currentUser = null; // { uid, name, email }
+  let bestGlobalCached = 0;
 
   function renderAccountSummaryFromCloud(s) {
     if (!currentUser) return;
+
     const games = s?.gamesPlayed || 0;
     const total = s?.totalTime || 0;
     const best = s?.bestTime || 0;
-    const avg = games > 0 ? total / games : 0;
+    const avg = games > 0 ? (total / games) : 0;
 
     if (accountNameEl) accountNameEl.textContent = `Account: ${currentUser.name}`;
     if (bestTimeEl) bestTimeEl.textContent = `Best: ${best.toFixed(2)}s`;
@@ -202,6 +210,7 @@
 
   async function refreshCloudLeaderboard() {
     if (!window.fbscores?.fetchTop) return;
+
     try {
       const [best5, worst5] = await Promise.all([
         window.fbscores.fetchTop(5),
@@ -229,6 +238,14 @@
     }
   }
 
+  async function updateGlobalBestCache() {
+    if (!window.fbscores?.fetchTop) return;
+    try {
+      const top1 = await window.fbscores.fetchTop(1);
+      bestGlobalCached = (top1?.[0]?.time || 0);
+    } catch {}
+  }
+
   async function enterMenuWithFirebaseUser(user) {
     currentUser = {
       uid: user.uid,
@@ -236,6 +253,7 @@
       name: (user.displayName || "Player").slice(0, 12),
     };
 
+    // Hide name row, keep UI structure
     if (nameInput) {
       nameInput.value = currentUser.name;
       nameInput.setAttribute("readonly", "readonly");
@@ -247,6 +265,7 @@
     state = STATE.MENU;
     showPanel(STATE.MENU);
 
+    // stats + leaderboard
     try {
       const s = await window.fbscores.readMyStats(currentUser.uid);
       renderAccountSummaryFromCloud(s);
@@ -254,7 +273,9 @@
       console.warn("readMyStats failed:", e);
       renderAccountSummaryFromCloud({ gamesPlayed: 0, totalTime: 0, bestTime: 0 });
     }
+
     refreshCloudLeaderboard();
+    updateGlobalBestCache();
   }
 
   async function doLogin() {
@@ -265,6 +286,11 @@
     if (!email) return setLoginError("Email is required.");
     if (!password) return setLoginError("Password is required.");
 
+    // ✅ if auth not ready, just show login page, don't crash
+    if (!window.fbauth?.loginOrRegister) {
+      return setLoginError("Auth is loading... please try again.");
+    }
+
     try {
       const user = await window.fbauth.loginOrRegister({ email, password, displayName });
       await enterMenuWithFirebaseUser(user);
@@ -274,14 +300,22 @@
     }
   }
 
-  function bootAuthGate() {
-    window.fbauth.onAuthStateChanged(window.fbauth.auth, (user) => {
-      if (user) enterMenuWithFirebaseUser(user);
-      else {
-        state = STATE.LOGIN;
-        showPanel(STATE.LOGIN);
+  function bootAuthGateSafe() {
+    // ✅ wait until fbauth exists (Safari-safe)
+    const tryBoot = () => {
+      if (window.fbauth?.onAuthStateChanged && window.fbauth?.auth) {
+        window.fbauth.onAuthStateChanged(window.fbauth.auth, (user) => {
+          if (user) enterMenuWithFirebaseUser(user);
+          else {
+            state = STATE.LOGIN;
+            showPanel(STATE.LOGIN);
+          }
+        });
+      } else {
+        setTimeout(tryBoot, 50);
       }
-    });
+    };
+    tryBoot();
   }
 
   // Login events
@@ -291,7 +325,7 @@
   loginNameInput?.addEventListener("keydown", (e) => { if (e.key === "Enter") doLogin(); });
 
   // =========================
-  // Game runtime
+  // Game
   // =========================
   let player = null;
   let enemies = [];
@@ -300,19 +334,18 @@
   let lastSpawnMs = 0;
   let spawnMs = BASE_SPAWN_MS;
 
-  // ✅ countdown 用 rAF ts 初始化（避免 Safari 卡 3）
+  // ✅ countdown uses rAF ts, not performance.now
   let countdownStartMs = null;
 
   let finalSurvivalSec = 0;
   let finalKilledBy = "";
   let finalKilledColor = "#1e1e1e";
   let recordBreaking = false;
-  let bestGlobalCached = 0;
 
   const key = { left: false, right: false };
   window.addEventListener("keydown", (e) => {
-    if (e.key === "ArrowLeft" || e.key === "a" || e.key === "A") key.left = true;
-    if (e.key === "ArrowRight" || e.key === "d" || e.key === "D") key.right = true;
+    if (["ArrowLeft", "a", "A"].includes(e.key)) key.left = true;
+    if (["ArrowRight", "d", "D"].includes(e.key)) key.right = true;
 
     if (e.key === "Enter") {
       if (state === STATE.LOGIN) doLogin();
@@ -321,8 +354,8 @@
     }
   });
   window.addEventListener("keyup", (e) => {
-    if (e.key === "ArrowLeft" || e.key === "a" || e.key === "A") key.left = false;
-    if (e.key === "ArrowRight" || e.key === "d" || e.key === "D") key.right = false;
+    if (["ArrowLeft", "a", "A"].includes(e.key)) key.left = false;
+    if (["ArrowRight", "d", "D"].includes(e.key)) key.right = false;
   });
 
   startBtn?.addEventListener("click", startCountdown);
@@ -345,12 +378,8 @@
   }
 
   function startCountdown() {
-    // ✅ 交給 loop 用 ts 來設定起點
-    countdownStartMs = null;
-
-    // UI 先顯示 3（避免空白）
+    countdownStartMs = null; // ✅ initialize in loop(ts)
     if (countText) countText.textContent = "2";
-
     state = STATE.COUNTDOWN;
     showPanel(STATE.COUNTDOWN);
   }
@@ -367,6 +396,7 @@
 
     const p = AI_PROFILES[name];
     const x = Math.floor(Math.random() * (LOGIC_W - ENEMY_SIZE));
+
     return {
       x, y: -ENEMY_SIZE, w: ENEMY_SIZE, h: ENEMY_SIZE,
       fall_v: randInt(p.fall_min, p.fall_max),
@@ -378,14 +408,6 @@
       spawn_tick: now,
       warning_ms: (name === "sniper") ? 500 : 0,
     };
-  }
-
-  async function updateGlobalBestCache() {
-    if (!window.fbscores?.fetchTop) return;
-    try {
-      const top1 = await window.fbscores.fetchTop(1);
-      bestGlobalCached = (top1?.[0]?.time || 0);
-    } catch {}
   }
 
   // =========================
@@ -406,8 +428,8 @@
 
     if (state === STATE.LOGIN || state === STATE.MENU) return;
 
+    // COUNTDOWN
     if (state === STATE.COUNTDOWN) {
-      // ✅ 用 rAF 的 ts 當起點
       if (countdownStartMs == null) countdownStartMs = ts;
 
       const remain = COUNTDOWN_SEC - (ts - countdownStartMs) / 1000;
@@ -419,13 +441,13 @@
         return;
       }
 
-      const txt = (remain <= 0.5) ? "GO" : String(Math.floor(remain));
+      const txt = (remain <= 0.5) ? "GO" : String(Math.ceil(remain)); // ✅ 2 -> 1 -> GO
       if (countText) countText.textContent = txt;
       return;
     }
 
+    // PLAYING
     if (state === STATE.PLAYING) {
-      // ✅ 保險：若 player 還沒初始化，先初始化避免 JS error 卡死
       if (!player) resetGame(ts);
 
       const elapsed = (ts - startMs) / 1000;
@@ -450,6 +472,7 @@
       let killer = null;
 
       for (const e of enemies) {
+        // sniper warning
         if (e.warning_ms > 0) {
           const t = ts - e.spawn_tick;
           if (t < e.warning_ms) {
@@ -480,8 +503,12 @@
           }
         }
 
+        // normal
         e.y += e.fall_v;
-        const dx = clamp((player.x + player.w / 2 - (e.x + e.w / 2)) * e.track_factor, -e.dx_cap, e.dx_cap);
+        const dx = clamp(
+          (player.x + player.w / 2 - (e.x + e.w / 2)) * e.track_factor,
+          -e.dx_cap, e.dx_cap
+        );
         e.x = clamp(e.x + Math.trunc(dx), 0, LOGIC_W - e.w);
 
         drawBlock(e.x, e.y, e.w, e.h, e.color);
@@ -499,7 +526,6 @@
         finalSurvivalSec = elapsed;
         finalKilledBy = killer.type;
         finalKilledColor = killer.color;
-
         recordBreaking = finalSurvivalSec > (bestGlobalCached || 0);
 
         if (finalTimeEl) finalTimeEl.textContent = finalSurvivalSec.toFixed(2);
@@ -509,6 +535,7 @@
         }
         if (recordEl) recordEl.classList.toggle("hidden", !recordBreaking);
 
+        // Cloud write: scores + userStats
         if (currentUser?.uid && window.fbscores?.submitScore && window.fbscores?.updateMyStats) {
           const name = currentUser.name || "Player";
 
@@ -535,6 +562,7 @@
       return;
     }
 
+    // GAMEOVER
     if (state === STATE.GAMEOVER) return;
   }
 
@@ -544,6 +572,9 @@
   showPanel(STATE.LOGIN);
   refreshCloudLeaderboard();
   updateGlobalBestCache();
-  bootAuthGate();
+
+  // ✅ Safe auth boot (wait until window.fbauth exists)
+  bootAuthGateSafe();
+
   requestAnimationFrame(loop);
 })();

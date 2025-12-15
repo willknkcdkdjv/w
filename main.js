@@ -236,7 +236,6 @@
       name: (user.displayName || "Player").slice(0, 12),
     };
 
-    // Menu：不再輸入 name，只顯示
     if (nameInput) {
       nameInput.value = currentUser.name;
       nameInput.setAttribute("readonly", "readonly");
@@ -248,7 +247,6 @@
     state = STATE.MENU;
     showPanel(STATE.MENU);
 
-    // 讀 stats + 拉榜
     try {
       const s = await window.fbscores.readMyStats(currentUser.uid);
       renderAccountSummaryFromCloud(s);
@@ -260,10 +258,6 @@
   }
 
   async function doLogin() {
-    if (!window.fbauth?.loginOrRegister) {
-      //return setLoginError("Firebase Auth not initialized (check index.html module script).");
-    }
-
     const email = (emailInput?.value || "").trim().toLowerCase();
     const password = (passwordInput?.value || "").trim();
     const displayName = (loginNameInput?.value || "").trim().slice(0, 12);
@@ -281,13 +275,13 @@
   }
 
   function bootAuthGate() {
-  window.fbauth.onAuthStateChanged(window.fbauth.auth, (user) => {
-    if (user) enterMenuWithFirebaseUser(user);
-    else {
-      state = STATE.LOGIN;
-      showPanel(STATE.LOGIN);
-    }
-  });
+    window.fbauth.onAuthStateChanged(window.fbauth.auth, (user) => {
+      if (user) enterMenuWithFirebaseUser(user);
+      else {
+        state = STATE.LOGIN;
+        showPanel(STATE.LOGIN);
+      }
+    });
   }
 
   // Login events
@@ -306,7 +300,8 @@
   let lastSpawnMs = 0;
   let spawnMs = BASE_SPAWN_MS;
 
-  let countdownStartMs = 0;
+  // ✅ countdown 用 rAF ts 初始化（避免 Safari 卡 3）
+  let countdownStartMs = null;
 
   let finalSurvivalSec = 0;
   let finalKilledBy = "";
@@ -350,7 +345,12 @@
   }
 
   function startCountdown() {
-    countdownStartMs = performance.now();
+    // ✅ 交給 loop 用 ts 來設定起點
+    countdownStartMs = null;
+
+    // UI 先顯示 3（避免空白）
+    if (countText) countText.textContent = "2";
+
     state = STATE.COUNTDOWN;
     showPanel(STATE.COUNTDOWN);
   }
@@ -381,7 +381,6 @@
   }
 
   async function updateGlobalBestCache() {
-    // 用雲端 Top1 當 global best（只做參考顯示 record breaking）
     if (!window.fbscores?.fetchTop) return;
     try {
       const top1 = await window.fbscores.fetchTop(1);
@@ -408,19 +407,27 @@
     if (state === STATE.LOGIN || state === STATE.MENU) return;
 
     if (state === STATE.COUNTDOWN) {
+      // ✅ 用 rAF 的 ts 當起點
+      if (countdownStartMs == null) countdownStartMs = ts;
+
       const remain = COUNTDOWN_SEC - (ts - countdownStartMs) / 1000;
+
       if (remain <= 0) {
         resetGame(ts);
         state = STATE.PLAYING;
         showPanel(STATE.PLAYING);
         return;
       }
-      const txt = (remain <= 0.5) ? "GO" : String(Math.floor(remain) + 1);
+
+      const txt = (remain <= 0.5) ? "GO" : String(Math.floor(remain));
       if (countText) countText.textContent = txt;
       return;
     }
 
     if (state === STATE.PLAYING) {
+      // ✅ 保險：若 player 還沒初始化，先初始化避免 JS error 卡死
+      if (!player) resetGame(ts);
+
       const elapsed = (ts - startMs) / 1000;
 
       spawnMs =
@@ -495,7 +502,6 @@
 
         recordBreaking = finalSurvivalSec > (bestGlobalCached || 0);
 
-        // UI
         if (finalTimeEl) finalTimeEl.textContent = finalSurvivalSec.toFixed(2);
         if (killedByEl) {
           killedByEl.textContent = `Kill by ${finalKilledBy}`;
@@ -503,7 +509,6 @@
         }
         if (recordEl) recordEl.classList.toggle("hidden", !recordBreaking);
 
-        // Cloud write
         if (currentUser?.uid && window.fbscores?.submitScore && window.fbscores?.updateMyStats) {
           const name = currentUser.name || "Player";
 

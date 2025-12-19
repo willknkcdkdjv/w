@@ -99,9 +99,11 @@ input{
   cursor:pointer;
 }
 
-/* ===== Leaderboard card: 固定右上角 ===== */
+/* =========================
+   Leaderboard card (右上角)
+   ========================= */
 .lb{
-  position:absolute;
+  position:absolute !important;
   right:28px;
   top:28px;
   width:360px;
@@ -110,48 +112,62 @@ input{
   border-radius:16px;
   padding:16px;
   backdrop-filter: blur(10px);
+  z-index:5;
 }
 
 .lb-title{font-weight:800; font-size:20px;}
 .lb-sub{color:var(--muted); font-size:14px; margin-top:6px;}
 
-/* list：保留 1..10 序號（你現在是 <ol>） */
+/* ✅ 排名數字：Safari-safe（li 必須是 list-item） */
 .lb ol{
-  margin:12px 0 0;
-  padding-left:18px;
+  list-style: decimal !important;
+  list-style-position: outside;
+  padding-left: 28px !important;     /* 留出數字 */
+  margin: 12px 0 0 !important;
   font-size:14px;
   max-height:260px;
   overflow:auto;
 }
 
-.lb ol li{ margin:6px 0; }
-
-/* row 對齊：Name | Time（main.js 需要 li.lb-row + span.lb-name/span.lb-time） */
+/* 重要：不要 flex/grid */
+.lb ol li,
 .lb li.lb-row{
-  display:flex;
-  justify-content:space-between;
-  align-items:baseline;
-  gap:12px;
+  display: list-item !important;
 }
 
-.lb .lb-name{
-  overflow:hidden;
-  white-space:nowrap;
-  text-overflow:ellipsis;
+/* 數字樣式 */
+.lb li.lb-row::marker{
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
 }
 
+/* 內容排版：用 float 讓 time 靠右（不破壞 marker） */
 .lb .lb-time{
+  float:right;
   text-align:right;
   font-variant-numeric: tabular-nums;
   white-space:nowrap;
 }
 
-/* ===== Stats card: 固定左下角 ===== */
-/* 重要：你的 HTML Stats 外層 class 請用 "stats"（不要再加 stats-box） */
-.stats{
-  position:absolute;
-  left:28px;
-  bottom:28px;
+/* name 不要被 time 擠掉 */
+.lb .lb-name{
+  display:inline-block;
+  max-width:220px; /* 視需要調 */
+  overflow:hidden;
+  white-space:nowrap;
+  text-overflow:ellipsis;
+}
+
+/* =========================
+   Stats card (左下角) - 你現在用 stats-float
+   ========================= */
+.stats-float{
+  position:absolute !important;
+  left:28px !important;
+  bottom:28px !important;
+  right:auto !important;
+  top:auto !important;
+  z-index:10;
 
   width:300px;
   background:var(--card);
@@ -165,11 +181,34 @@ input{
   gap:8px 12px;
   color:var(--muted);
   font-size:14px;
-
   pointer-events:none;
-  white-space:nowrap;
 }
 
+/* 你如果還留著舊 .stats（避免它干擾） */
+.stats{
+  position:absolute !important;
+  left:28px !important;
+  bottom:28px !important;
+  right:auto !important;
+  top:auto !important;
+  z-index:10;
+  width:300px;
+  background:var(--card);
+  border:1px solid #eee;
+  border-radius:16px;
+  padding:12px 14px;
+  backdrop-filter: blur(10px);
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap:8px 12px;
+  color:var(--muted);
+  font-size:14px;
+  pointer-events:none;
+}
+
+/* =========================
+   HUD / Countdown / Gameover
+   ========================= */
 .hud{
   position:absolute;
   left:24px;
@@ -204,7 +243,6 @@ input{
   line-height:1;
 }
 
-/* gameover 的 seconds 字體大小 */
 .sec{
   font-size:16px;
   color:var(--muted);
@@ -214,6 +252,5 @@ input{
 .killed{margin-top:8px; font-size:22px; font-weight:800;}
 .record{margin-top:10px; font-size:22px; font-weight:900; color:#dc0000;}
 
-/* login panel spacing */
 #panel-login .row{ margin-top:12px; }
 #panel-login input{ width:100%; }

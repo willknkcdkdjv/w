@@ -33,12 +33,16 @@ canvas{
   width:800px;
   height:500px;
   display:block;
+
+  position: relative;
+  z-index: 1;   /* canvas 在底層 */
 }
 
 #ui{
   position:absolute;
   inset:0;
   pointer-events:none;
+  z-index: 2;   /* UI 在 canvas 上層 */
 }
 
 .panel{
@@ -243,3 +247,28 @@ input{
 
 #panel-login .row{ margin-top:12px; }
 #panel-login input{ width:100%; }
+
+/* ===== FORCE STATS VISIBLE (debug + final) ===== */
+.stats-float{
+  position: absolute !important;
+  left: 28px !important;
+  bottom: 28px !important;
+  z-index: 9999 !important;
+
+  width: 300px !important;
+  background: var(--card) !important;
+  border: 1px solid #eee !important;
+  border-radius: 16px !important;
+  padding: 12px 14px !important;
+  backdrop-filter: blur(10px);
+
+  display: grid !important;
+  grid-template-columns: 1fr 1fr !important;
+  gap: 8px 12px !important;
+
+  color: var(--muted) !important;
+  font-size: 14px !important;
+
+  /* debug: 先用紅框確認看的到 */
+  /*outline: 2px solid #eee(255, 255, 255) !important;
+}

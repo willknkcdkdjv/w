@@ -100,10 +100,10 @@ input{
 }
 
 /* =========================
-   Leaderboard card (右上角)
+   Leaderboard（右上）
    ========================= */
 .lb{
-  position:absolute !important;
+  position:absolute;
   right:28px;
   top:28px;
   width:360px;
@@ -118,55 +118,63 @@ input{
 .lb-title{font-weight:800; font-size:20px;}
 .lb-sub{color:var(--muted); font-size:14px; margin-top:6px;}
 
-/* ✅ 排名數字：Safari-safe（li 必須是 list-item） */
+/* ✅ 關鍵：讓 <ol> 的 marker 一定顯示 */
 .lb ol{
-  list-style: decimal !important;
+  list-style-type: decimal;
   list-style-position: outside;
-  padding-left: 28px !important;     /* 留出數字 */
-  margin: 12px 0 0 !important;
+  padding-left: 28px;
+  margin: 12px 0 0;
   font-size:14px;
   max-height:260px;
   overflow:auto;
 }
 
-/* 重要：不要 flex/grid */
-.lb ol li,
-.lb li.lb-row{
-  display: list-item !important;
+/* li 必須是 list-item（不能 flex / grid） */
+.lb ol > li{
+  display: list-item;
+  margin:6px 0;
 }
 
-/* 數字樣式 */
-.lb li.lb-row::marker{
+/* marker 樣式 */
+.lb ol > li::marker{
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
 
-/* 內容排版：用 float 讓 time 靠右（不破壞 marker） */
+/* 內容排版：用內層 div，不影響 marker */
+.lb .lb-row{
+  display:block;
+}
+
+/* time 靠右（不用 flex） */
 .lb .lb-time{
   float:right;
-  text-align:right;
   font-variant-numeric: tabular-nums;
   white-space:nowrap;
 }
 
-/* name 不要被 time 擠掉 */
 .lb .lb-name{
   display:inline-block;
-  max-width:220px; /* 視需要調 */
+  max-width:220px;
   overflow:hidden;
   white-space:nowrap;
   text-overflow:ellipsis;
 }
 
+/* 清除 float */
+.lb .lb-row::after{
+  content:"";
+  display:block;
+  clear:both;
+}
+
 /* =========================
-   Stats card (左下角) - 你現在用 stats-float
+   Stats（左下）
    ========================= */
 .stats-float{
-  position:absolute !important;
-  left:28px !important;
-  bottom:28px !important;
-  right:auto !important;
-  top:auto !important;
+  position:absolute;
+  left:28px;
+  bottom:28px;
   z-index:10;
 
   width:300px;
@@ -184,27 +192,8 @@ input{
   pointer-events:none;
 }
 
-/* 你如果還留著舊 .stats（避免它干擾） */
-.stats{
-  position:absolute !important;
-  left:28px !important;
-  bottom:28px !important;
-  right:auto !important;
-  top:auto !important;
-  z-index:10;
-  width:300px;
-  background:var(--card);
-  border:1px solid #eee;
-  border-radius:16px;
-  padding:12px 14px;
-  backdrop-filter: blur(10px);
-  display:grid;
-  grid-template-columns: 1fr 1fr;
-  gap:8px 12px;
-  color:var(--muted);
-  font-size:14px;
-  pointer-events:none;
-}
+/* ⚠️ 舊 .stats 若還存在，直接隱藏避免干擾 */
+.stats{ display:none !important; }
 
 /* =========================
    HUD / Countdown / Gameover

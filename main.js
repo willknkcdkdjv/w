@@ -15,7 +15,7 @@
   const ENEMY_SIZE = 60;
   const NO_SNIPER_FIRST_SEC = 5;
 
-  // ✅ countdown only: 2 → 1 → GO
+  // 2 → 1 → GO
   const COUNTDOWN_SEC = 2;
 
   const COLORS = {
@@ -62,7 +62,6 @@
   const loginBtn = document.getElementById("loginBtn");
   const loginError = document.getElementById("loginError");
 
-  const nameInput = document.getElementById("nameInput");
   const startBtn = document.getElementById("startBtn");
 
   const countText = document.getElementById("countText");
@@ -75,15 +74,12 @@
   const bestList = document.getElementById("bestList");
   const bestList2 = document.getElementById("bestList2");
 
-  const accountNameEl = document.getElementById("accountName");
-  const bestTimeEl = document.getElementById("bestTime");
-  const gamesPlayedEl = document.getElementById("gamesPlayed");
-  const avgTimeEl = document.getElementById("avgTime");
-
-  const accountNameEl2 = document.getElementById("accountName2");
-  const bestTimeEl2 = document.getElementById("bestTime2");
-  const gamesPlayedEl2 = document.getElementById("gamesPlayed2");
-  const avgTimeEl2 = document.getElementById("avgTime2");
+  // 兼容：同頁多個相同 id（不推薦，但先救你）
+  const allById = (id) => Array.from(document.querySelectorAll(`[id="${id}"]`));
+  const accountNameEls = allById("accountName").concat(allById("accountName2"));
+  const bestTimeEls = allById("bestTime").concat(allById("bestTime2"));
+  const gamesPlayedEls = allById("gamesPlayed").concat(allById("gamesPlayed2"));
+  const avgTimeEls = allById("avgTime").concat(allById("avgTime2"));
 
   function showPanel(which) {
     panelLogin?.classList.toggle("hidden", which !== STATE.LOGIN);
@@ -156,15 +152,15 @@
   // =========================
   // Render helpers
   // =========================
-  function roundRect(ctx, x, y, w, h, r) {
+  function roundRect(ctx2, x, y, w, h, r) {
     const rr = Math.min(r, w / 2, h / 2);
-    ctx.beginPath();
-    ctx.moveTo(x + rr, y);
-    ctx.arcTo(x + w, y, x + w, y + h, rr);
-    ctx.arcTo(x + w, y + h, x, y + h, rr);
-    ctx.arcTo(x, y + h, x, y, rr);
-    ctx.arcTo(x, y, x + w, y, rr);
-    ctx.closePath();
+    ctx2.beginPath();
+    ctx2.moveTo(x + rr, y);
+    ctx2.arcTo(x + w, y, x + w, y + h, rr);
+    ctx2.arcTo(x + w, y + h, x, y + h, rr);
+    ctx2.arcTo(x, y + h, x, y, rr);
+    ctx2.arcTo(x, y, x + w, y, rr);
+    ctx2.closePath();
   }
 
   function drawBlock(xL, yL, wL, hL, color) {
@@ -182,8 +178,11 @@
   // =========================
   // Firebase-backed account
   // =========================
-  let currentUser = null; // { uid, name, email }
+  let currentUser = null;
   let bestGlobalCached = 0;
+
+  // Blaze 才能用的 server-run（若不存在，會自動 fallback）
+  let currentRunId = null;
 
   function renderAccountSummaryFromCloud(s) {
     if (!currentUser) return;
@@ -193,61 +192,64 @@
     const best = s?.bestTime || 0;
     const avg = games > 0 ? (total / games) : 0;
 
-    if (accountNameEl) accountNameEl.textContent = `Account: ${currentUser.name}`;
-    if (bestTimeEl) bestTimeEl.textContent = `Best: ${best.toFixed(2)}s`;
-    if (gamesPlayedEl) gamesPlayedEl.textContent = `Games Played: ${games}`;
-    if (avgTimeEl) avgTimeEl.textContent = `Avg Time: ${avg.toFixed(2)}s`;
-
-    if (accountNameEl2) accountNameEl2.textContent = `Account: ${currentUser.name}`;
-    if (bestTimeEl2) bestTimeEl2.textContent = `Best: ${best.toFixed(2)}s`;
-    if (gamesPlayedEl2) gamesPlayedEl2.textContent = `Games Played: ${games}`;
-    if (avgTimeEl2) avgTimeEl2.textContent = `Avg. Time: ${avg.toFixed(2)}s`;
+    for (const el of accountNameEls) el.textContent = `Account: ${currentUser.name}`;
+    for (const el of bestTimeEls) el.textContent = `Best: ${best.toFixed(2)}s`;
+    for (const el of gamesPlayedEls) el.textContent = `Games Played: ${games}`;
+    for (const el of avgTimeEls) el.textContent = `Avg Time: ${avg.toFixed(2)}s`;
   }
 
- async function refreshCloudLeaderboard() {
-  if (!window.fbscores?.fetchTop) return;
+  // Leaderboard：保留 <ol> marker（數字）
+  function setLeaderboard(ol, rows) {
+    if (!ol) return;
+    ol.innerHTML = "";
 
-  try {
-    const top10 = await window.fbscores.fetchTop(10);
+    for (const r of rows) {
+      const name = (r.name || "Player").slice(0, 12);
+      const time = (typeof r.time === "number") ? r.time : 0;
 
-    const fillList = (ol, rows) => {
-      if (!ol) return;
-      ol.innerHTML = "";
+      const li = document.createElement("li"); // ✅ list-item → marker 會顯示
+      li.className = "lb-item";
 
-      for (const r of rows) {
-        const name = (r.name || "Player").slice(0, 12);
-        const time = (typeof r.time === "number") ? r.time : 0;
+      const row = document.createElement("div"); // ✅ 內層排版用 flex
+      row.className = "lb-row";
 
-        const li = document.createElement("li");
-        li.className = "lb-row";
+      const nameEl = document.createElement("span");
+      nameEl.className = "lb-name";
+      nameEl.textContent = name;
 
-        const nameEl = document.createElement("span");
-        nameEl.className = "lb-name";
-        nameEl.textContent = name;
+      const timeEl = document.createElement("span");
+      timeEl.className = "lb-time";
+      timeEl.textContent = `${time.toFixed(2)}s`;
 
-        const timeEl = document.createElement("span");
-        timeEl.className = "lb-time";
-        timeEl.textContent = `${time.toFixed(2)}s`;
-
-        li.appendChild(nameEl);
-        li.appendChild(timeEl);
-        ol.appendChild(li);
-      }
-    };
-
-    fillList(bestList, top10);
-    fillList(bestList2, top10);
-  } catch (e) {
-    console.warn("Cloud leaderboard failed:", e);
+      row.appendChild(nameEl);
+      row.appendChild(timeEl);
+      li.appendChild(row);
+      ol.appendChild(li);
+    }
   }
-}
 
-  async function updateGlobalBestCache() {
-    if (!window.fbscores?.fetchTop) return;
+  async function refreshCloudLeaderboard() {
     try {
-      const top1 = await window.fbscores.fetchTop(1);
-      bestGlobalCached = (top1?.[0]?.time || 0);
-    } catch {}
+      // Blaze 有 fetchTopRuns
+      if (window.fbscores?.fetchTopRuns) {
+        const top10 = await window.fbscores.fetchTopRuns(10);
+        setLeaderboard(bestList, top10);
+        setLeaderboard(bestList2, top10);
+        bestGlobalCached = (top10?.[0]?.time || 0);
+        return;
+      }
+
+      // 免費 fallback：直接用你原本 scores collection 的 fetchTop
+      if (window.fbscores?.fetchTop) {
+        const top10 = await window.fbscores.fetchTop(10);
+        setLeaderboard(bestList, top10);
+        setLeaderboard(bestList2, top10);
+        bestGlobalCached = (top10?.[0]?.time || 0);
+        return;
+      }
+    } catch (e) {
+      console.warn("Cloud leaderboard failed:", e);
+    }
   }
 
   async function enterMenuWithFirebaseUser(user) {
@@ -257,27 +259,21 @@
       name: (user.displayName || "Player").slice(0, 12),
     };
 
-    if (nameInput) {
-      nameInput.value = currentUser.name;
-      nameInput.setAttribute("readonly", "readonly");
-      const nameRow = nameInput.closest(".row");
-      if (nameRow) nameRow.style.display = "none";
-    }
-
     setLoginError("");
     state = STATE.MENU;
     showPanel(STATE.MENU);
 
     try {
-      const s = await window.fbscores.readMyStats(currentUser.uid);
-      renderAccountSummaryFromCloud(s);
+      if (window.fbscores?.readMyStats) {
+        const s = await window.fbscores.readMyStats(currentUser.uid);
+        renderAccountSummaryFromCloud(s);
+      }
     } catch (e) {
       console.warn("readMyStats failed:", e);
       renderAccountSummaryFromCloud({ gamesPlayed: 0, totalTime: 0, bestTime: 0 });
     }
 
     refreshCloudLeaderboard();
-    updateGlobalBestCache();
   }
 
   async function doLogin() {
@@ -325,6 +321,39 @@
   loginNameInput?.addEventListener("keydown", (e) => { if (e.key === "Enter") doLogin(); });
 
   // =========================
+  // Anti-cheat (FREE)
+  // =========================
+  let runStartPerf = 0;
+  let lastTickPerf = 0;
+  let runInvalid = false;
+
+  function invalidateRun(reason) {
+    if (state !== STATE.PLAYING) return;
+    runInvalid = true;
+
+    // UI
+    if (finalTimeEl) finalTimeEl.textContent = ((performance.now() - runStartPerf) / 1000).toFixed(2);
+    if (killedByEl) {
+      killedByEl.textContent = `Kill by ${reason}`;
+      killedByEl.style.color = "#1e1e1e";
+    }
+    if (recordEl) recordEl.classList.add("hidden");
+
+    // 不上傳
+    currentRunId = null;
+
+    state = STATE.GAMEOVER;
+    showPanel(STATE.GAMEOVER);
+  }
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) invalidateRun("Tab hidden");
+  });
+  window.addEventListener("blur", () => {
+    invalidateRun("Window unfocused");
+  });
+
+  // =========================
   // Game
   // =========================
   let player = null;
@@ -368,12 +397,16 @@
     };
   }
 
-  function resetGame(now) {
+  function resetGame(nowTs) {
     player = newPlayer();
     enemies = [];
-    startMs = now;
-    lastSpawnMs = now;
+    startMs = nowTs;
+    lastSpawnMs = nowTs;
     spawnMs = BASE_SPAWN_MS;
+
+    runStartPerf = performance.now();
+    lastTickPerf = runStartPerf;
+    runInvalid = false;
   }
 
   function startCountdown() {
@@ -381,6 +414,27 @@
     if (countText) countText.textContent = "2";
     state = STATE.COUNTDOWN;
     showPanel(STATE.COUNTDOWN);
+  }
+
+  async function beginPlaying(ts) {
+    resetGame(ts);
+
+    // 尝试 Blaze server-run（没有也没关系）
+    currentRunId = null;
+    if (currentUser?.uid && window.fbscores?.startRun) {
+      try {
+        currentRunId = await window.fbscores.startRun({
+          uid: currentUser.uid,
+          name: currentUser.name || "Player",
+        });
+      } catch (e) {
+        console.warn("startRun failed:", e);
+        currentRunId = null;
+      }
+    }
+
+    state = STATE.PLAYING;
+    showPanel(STATE.PLAYING);
   }
 
   function spawnEnemy(now) {
@@ -424,9 +478,7 @@
       const remain = COUNTDOWN_SEC - (ts - countdownStartMs) / 1000;
 
       if (remain <= 0) {
-        resetGame(ts);
-        state = STATE.PLAYING;
-        showPanel(STATE.PLAYING);
+        beginPlaying(ts);
       } else {
         const txt = (remain <= 0.5) ? "GO" : String(Math.ceil(remain));
         if (countText) countText.textContent = txt;
@@ -452,7 +504,18 @@
     if (state === STATE.PLAYING) {
       if (!player) resetGame(ts);
 
-      const elapsed = (ts - startMs) / 1000;
+      // ✅ 反作弊：背景/最小化回來會大跳秒
+      const nowPerf = performance.now();
+      const dtPerf = nowPerf - lastTickPerf;
+      lastTickPerf = nowPerf;
+
+      if (dtPerf > 250) {
+        invalidateRun("Tab switched / throttled");
+        return;
+      }
+
+      // elapsed：只用于显示（成績會被 clamp 在連續可見狀態）
+      const elapsed = (nowPerf - runStartPerf) / 1000;
 
       spawnMs =
         elapsed < 5  ? 950 :
@@ -465,6 +528,7 @@
       if (key.right) player.x += PLAYER_SPEED;
       player.x = clamp(player.x, 0, LOGIC_W - player.w);
 
+      // 用 ts 做生成節奏 OK（不影響分數了）
       if (ts - lastSpawnMs >= spawnMs) {
         enemies.push(spawnEnemy(ts));
         lastSpawnMs = ts;
@@ -522,40 +586,75 @@
       if (timeText) timeText.textContent = `Time: ${elapsed.toFixed(2)}s`;
 
       if (collided && killer) {
-        finalSurvivalSec = elapsed;
         finalKilledBy = killer.type;
         finalKilledColor = killer.color;
-        recordBreaking = finalSurvivalSec > (bestGlobalCached || 0);
 
-        if (finalTimeEl) finalTimeEl.textContent = finalSurvivalSec.toFixed(2);
+        state = STATE.GAMEOVER;
+        showPanel(STATE.GAMEOVER);
+
+        // UI 先顯示本地 elapsed（先出結果）
+        if (finalTimeEl) finalTimeEl.textContent = elapsed.toFixed(2);
         if (killedByEl) {
           killedByEl.textContent = `Kill by ${finalKilledBy}`;
           killedByEl.style.color = finalKilledColor;
         }
-        if (recordEl) recordEl.classList.toggle("hidden", !recordBreaking);
 
-        if (currentUser?.uid && window.fbscores?.submitScore && window.fbscores?.updateMyStats) {
-          const name = currentUser.name || "Player";
+        // 如果本局無效：直接結束不寫入
+        if (runInvalid) return;
 
-          window.fbscores.submitScore({
-            uid: currentUser.uid,
-            name,
-            time: finalSurvivalSec,
-            killedBy: finalKilledBy,
-          }).then(() => {
-            refreshCloudLeaderboard();
-            updateGlobalBestCache();
-          }).catch(console.warn);
+        (async () => {
+          let finalSec = elapsed;
 
-          window.fbscores.updateMyStats(currentUser.uid, finalSurvivalSec)
-            .then(() => window.fbscores.readMyStats(currentUser.uid))
-            .then((s) => renderAccountSummaryFromCloud(s))
-            .catch(console.warn);
-        }
+          // Blaze：server-run 拿 server duration
+          if (currentRunId && window.fbscores?.finishRun && window.fbscores?.waitRunDuration) {
+            try {
+              await window.fbscores.finishRun({ runId: currentRunId });
+              const durationMs = await window.fbscores.waitRunDuration(currentRunId);
+              if (typeof durationMs === "number" && durationMs > 0) finalSec = durationMs / 1000;
+            } catch (e) {
+              console.warn("finishRun/waitRunDuration failed:", e);
+            } finally {
+              currentRunId = null;
+            }
+          } else {
+            // 免費：用 elapsed（已經防 tab 切換大跳秒）
+            currentRunId = null;
+          }
 
-        state = STATE.GAMEOVER;
-        showPanel(STATE.GAMEOVER);
+          finalSurvivalSec = finalSec;
+          recordBreaking = finalSurvivalSec > (bestGlobalCached || 0);
+
+          if (finalTimeEl) finalTimeEl.textContent = finalSurvivalSec.toFixed(2);
+          if (recordEl) recordEl.classList.toggle("hidden", !recordBreaking);
+
+          // 免費版：還是可以寫入 Firestore（但只能「弱防」）
+          if (currentUser?.uid && window.fbscores?.submitScore && window.fbscores?.updateMyStats) {
+            try {
+              await window.fbscores.submitScore({
+                uid: currentUser.uid,
+                name: currentUser.name || "Player",
+                time: finalSurvivalSec,
+                killedBy: finalKilledBy,
+              });
+              await window.fbscores.updateMyStats(currentUser.uid, finalSurvivalSec);
+            } catch (e) {
+              console.warn("submitScore/updateMyStats failed:", e);
+            }
+          }
+
+          // refresh leaderboard + stats
+          try { await refreshCloudLeaderboard(); } catch {}
+          try {
+            if (currentUser?.uid && window.fbscores?.readMyStats) {
+              const s = await window.fbscores.readMyStats(currentUser.uid);
+              renderAccountSummaryFromCloud(s);
+            }
+          } catch {}
+        })();
+
+        return;
       }
+
       return;
     }
 
@@ -567,7 +666,6 @@
   // =========================
   showPanel(STATE.LOGIN);
   refreshCloudLeaderboard();
-  updateGlobalBestCache();
   bootAuthGateSafe();
   requestAnimationFrame(loop);
 })();

@@ -36,38 +36,29 @@
 
         <div id="loginError" class="hint" style="color:#c00; display:none;"></div>
       </div>
+
       <div id="panel-menu" class="panel hidden">
         <div class="title">DOGE</div>
         <div class="hint">Press Enter to Start</div>
         <div class="hint small">Controls: A / D or ← → to dodge</div>
 
-        <div class="row">
-          <label>Name</label>
-          <input id="nameInput" maxlength="12" placeholder="Player" />
-        </div>
-
         <div class="row buttons">
           <button id="startBtn">Start</button>
         </div>
 
+        <!-- Stats：左下角獨立一張卡 -->
+        <div class="stats-float">
+          <div id="accountName"></div>
+          <div id="bestTime"></div>
+          <div id="gamesPlayed"></div>
+          <div id="avgTime"></div>
+        </div>
+
+        <!-- Leaderboard：右上角原本那張卡 -->
         <div class="lb">
           <div class="lb-title">Leaderboard</div>
-          <div class="lb-cols">
-            <div>
-              <div class="lb-sub">Top 5 (Longest)</div>
-              <ol id="bestList"></ol>
-            </div>
-            <div>
-              <div class="lb-sub">Top 5 (Shortest)</div>
-              <ol id="worstList"></ol>
-            </div>
-          </div>
-          <div class="stats">
-            <div id="accountName"></div>
-            <div id="bestTime"></div>
-            <div id="gamesPlayed"></div>
-            <div id="avgTime"></div>
-          </div>
+          <div class="lb-sub">Top 10 (Longest)</div>
+          <ol id="bestList"></ol>
         </div>
       </div>
 
@@ -83,32 +74,27 @@
 
       <div id="panel-gameover" class="panel hidden">
         <div class="title">GAME OVER</div>
+
         <div class="bigline">
           <span id="finalTime" class="huge">0.00</span>
           <span class="sec">seconds</span>
         </div>
+
         <div id="killedBy" class="killed">Kill by ???</div>
         <div id="record" class="record hidden">RECORD BREAKING</div>
         <div class="hint">Press Enter to Restart</div>
 
+        <div class="stats-float">
+          <div id="accountName2"></div>
+          <div id="bestTime2"></div>
+          <div id="gamesPlayed2"></div>
+          <div id="avgTime2"></div>
+        </div>
+
         <div class="lb">
           <div class="lb-title">Leaderboard</div>
-          <div class="lb-cols">
-            <div>
-              <div class="lb-sub">Top 5 (Longest)</div>
-              <ol id="bestList2"></ol>
-            </div>
-            <div>
-              <div class="lb-sub">Top 5 (Shortest)</div>
-              <ol id="worstList2"></ol>
-            </div>
-          </div>
-          <div class="stats">
-            <div id="accountName2"></div>
-            <div id="bestTime2"></div>
-            <div id="gamesPlayed2"></div>
-            <div id="avgTime2"></div>
-          </div>
+          <div class="lb-sub">Top 10 (Longest)</div>
+          <ol id="bestList2"></ol>
         </div>
       </div>
     </div>
@@ -154,7 +140,7 @@
     });
   }
 
-  async function fetchTop(n = 5) {
+  async function fetchTop(n = 10) {
     const q = query(scoresCol, orderBy("time", "desc"), limit(n));
     const snap = await getDocs(q);
     return snap.docs.map(d => d.data());

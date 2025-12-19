@@ -73,9 +73,7 @@
   const recordEl = document.getElementById("record");
 
   const bestList = document.getElementById("bestList");
-  const worstList = document.getElementById("worstList");
   const bestList2 = document.getElementById("bestList2");
-  const worstList2 = document.getElementById("worstList2");
 
   const accountNameEl = document.getElementById("accountName");
   const bestTimeEl = document.getElementById("bestTime");
@@ -172,12 +170,10 @@
   function drawBlock(xL, yL, wL, hL, color) {
     const x = vx(xL), y = vy(yL), w = vw(wL), h = vh(hL);
 
-    // shadow
     ctx.fillStyle = "rgba(0,0,0,0.12)";
     roundRect(ctx, x + 3, y + 3, w, h, 10);
     ctx.fill();
 
-    // block
     ctx.fillStyle = color;
     roundRect(ctx, x, y, w, h, 10);
     ctx.fill();
@@ -208,35 +204,43 @@
     if (avgTimeEl2) avgTimeEl2.textContent = `Avg. Time: ${avg.toFixed(2)}s`;
   }
 
-  async function refreshCloudLeaderboard() {
-    if (!window.fbscores?.fetchTop) return;
+ async function refreshCloudLeaderboard() {
+  if (!window.fbscores?.fetchTop) return;
 
-    try {
-      const [best5, worst5] = await Promise.all([
-        window.fbscores.fetchTop(5),
-        window.fbscores.fetchBottom(5),
-      ]);
+  try {
+    const top10 = await window.fbscores.fetchTop(10);
 
-      const fillList = (ol, rows) => {
-        if (!ol) return;
-        ol.innerHTML = "";
-        for (const r of rows) {
-          const li = document.createElement("li");
-          const nm = (r.name || "Player").slice(0, 12);
-          const tm = (typeof r.time === "number") ? r.time : 0;
-          li.textContent = `${nm}  ${tm.toFixed(2)}s`;
-          ol.appendChild(li);
-        }
-      };
+    const fillList = (ol, rows) => {
+      if (!ol) return;
+      ol.innerHTML = "";
 
-      fillList(bestList, best5);
-      fillList(worstList, worst5);
-      fillList(bestList2, best5);
-      fillList(worstList2, worst5);
-    } catch (e) {
-      console.warn("Cloud leaderboard failed:", e);
-    }
+      for (const r of rows) {
+        const name = (r.name || "Player").slice(0, 12);
+        const time = (typeof r.time === "number") ? r.time : 0;
+
+        const li = document.createElement("li");
+        li.className = "lb-row";
+
+        const nameEl = document.createElement("span");
+        nameEl.className = "lb-name";
+        nameEl.textContent = name;
+
+        const timeEl = document.createElement("span");
+        timeEl.className = "lb-time";
+        timeEl.textContent = `${time.toFixed(2)}s`;
+
+        li.appendChild(nameEl);
+        li.appendChild(timeEl);
+        ol.appendChild(li);
+      }
+    };
+
+    fillList(bestList, top10);
+    fillList(bestList2, top10);
+  } catch (e) {
+    console.warn("Cloud leaderboard failed:", e);
   }
+}
 
   async function updateGlobalBestCache() {
     if (!window.fbscores?.fetchTop) return;
@@ -253,7 +257,6 @@
       name: (user.displayName || "Player").slice(0, 12),
     };
 
-    // Hide name row, keep UI structure
     if (nameInput) {
       nameInput.value = currentUser.name;
       nameInput.setAttribute("readonly", "readonly");
@@ -265,7 +268,6 @@
     state = STATE.MENU;
     showPanel(STATE.MENU);
 
-    // stats + leaderboard
     try {
       const s = await window.fbscores.readMyStats(currentUser.uid);
       renderAccountSummaryFromCloud(s);
@@ -286,7 +288,6 @@
     if (!email) return setLoginError("Email is required.");
     if (!password) return setLoginError("Password is required.");
 
-    // ✅ if auth not ready, just show login page, don't crash
     if (!window.fbauth?.loginOrRegister) {
       return setLoginError("Auth is loading... please try again.");
     }
@@ -301,7 +302,6 @@
   }
 
   function bootAuthGateSafe() {
-    // ✅ wait until fbauth exists (Safari-safe)
     const tryBoot = () => {
       if (window.fbauth?.onAuthStateChanged && window.fbauth?.auth) {
         window.fbauth.onAuthStateChanged(window.fbauth.auth, (user) => {
@@ -334,7 +334,6 @@
   let lastSpawnMs = 0;
   let spawnMs = BASE_SPAWN_MS;
 
-  // ✅ countdown uses rAF ts, not performance.now
   let countdownStartMs = null;
 
   let finalSurvivalSec = 0;
@@ -378,7 +377,7 @@
   }
 
   function startCountdown() {
-    countdownStartMs = null; // ✅ initialize in loop(ts)
+    countdownStartMs = null;
     if (countText) countText.textContent = "2";
     state = STATE.COUNTDOWN;
     showPanel(STATE.COUNTDOWN);
@@ -418,7 +417,7 @@
   function loop(ts) {
     requestAnimationFrame(loop);
 
-    // ✅ 先處理 COUNTDOWN（不要被 FPS cap 擋住）
+    // COUNTDOWN (not blocked by fps cap)
     if (state === STATE.COUNTDOWN) {
       if (countdownStartMs == null) countdownStartMs = ts;
 
@@ -428,18 +427,16 @@
         resetGame(ts);
         state = STATE.PLAYING;
         showPanel(STATE.PLAYING);
-        // 不 return，讓畫面可以立即刷新成 playing 的白底
       } else {
-        const txt = (remain <= 0.5) ? "GO" : String(Math.ceil(remain)); // ✅ 2 → 1 → GO
+        const txt = (remain <= 0.5) ? "GO" : String(Math.ceil(remain));
         if (countText) countText.textContent = txt;
-        // countdown 狀態下，直接畫白底就好
         ctx.fillStyle = COLORS.WHITE;
         ctx.fillRect(0, 0, VIEW_W, VIEW_H);
         return;
       }
     }
 
-    // ✅ FPS cap（放在倒數後面）
+    // FPS cap
     if (lastFrame) {
       const dt = ts - lastFrame;
       if (dt < (1000 / FPS_CAP)) return;
@@ -452,7 +449,6 @@
 
     if (state === STATE.LOGIN || state === STATE.MENU) return;
 
-    // PLAYING
     if (state === STATE.PLAYING) {
       if (!player) resetGame(ts);
 
@@ -478,7 +474,6 @@
       let killer = null;
 
       for (const e of enemies) {
-        // sniper warning
         if (e.warning_ms > 0) {
           const t = ts - e.spawn_tick;
           if (t < e.warning_ms) {
@@ -508,7 +503,6 @@
           }
         }
 
-        // normal
         e.y += e.fall_v;
         const dx = clamp(
           (player.x + player.w / 2 - (e.x + e.w / 2)) * e.track_factor,
@@ -562,9 +556,9 @@
         state = STATE.GAMEOVER;
         showPanel(STATE.GAMEOVER);
       }
-
       return;
     }
+
     if (state === STATE.GAMEOVER) return;
   }
 
@@ -574,9 +568,6 @@
   showPanel(STATE.LOGIN);
   refreshCloudLeaderboard();
   updateGlobalBestCache();
-
-  // ✅ Safe auth boot (wait until window.fbauth exists)
   bootAuthGateSafe();
-
   requestAnimationFrame(loop);
 })();

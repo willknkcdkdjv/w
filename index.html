@@ -107,102 +107,105 @@
 
   <!-- ================= Firebase ================= -->
   <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
-    import {
-      getFirestore, collection, addDoc, query, orderBy, limit, getDocs,
-      serverTimestamp, doc, runTransaction, getDoc, updateDoc, onSnapshot
-    } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
-    import {
-      getAuth, onAuthStateChanged, createUserWithEmailAndPassword,
-      signInWithEmailAndPassword, updateProfile, signOut
-    } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
+  import {
+    getFirestore, collection, addDoc, query, orderBy, limit, getDocs,
+    serverTimestamp, doc, runTransaction, getDoc
+  } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+  import {
+    getAuth, onAuthStateChanged, createUserWithEmailAndPassword,
+    signInWithEmailAndPassword, updateProfile
+  } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
 
-    /* 🔴 填你的 config */
-    const firebaseConfig = {
-      apiKey: "AIzaSyCb5w8jk77GnaeC9YnZcI6lfwObEXB9nN8",
-      authDomain: "doge-9ba16.firebaseapp.com",
-      projectId: "doge-9ba16",
-      storageBucket: "doge-9ba16.firebasestorage.app",
-      messagingSenderId: "353763869004",
-      appId: "1:353763869004:web:3410452212d77e893acfe9",
-      measurementId: "G-CWDG44YNQ9"
-    };
+  // ================= Firebase config =================
+  const firebaseConfig = {
+    apiKey: "AIzaSyCb5w8jk77GnaeC9YnZcI6lfwObEXB9nN8",
+    authDomain: "doge-9ba16.firebaseapp.com",
+    projectId: "doge-9ba16",
+    storageBucket: "doge-9ba16.firebasestorage.app",
+    messagingSenderId: "353763869004",
+    appId: "1:353763869004:web:3410452212d77e893acfe9"
+  };
 
-    const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
-    const auth = getAuth(app);
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+  const auth = getAuth(app);
 
-    /* ================= Runs (server authoritative timing) ================= */
-    const runsCol = collection(db, "runs");
-    const scoresCol = collection(db, "scores");
+  // ================= Collections =================
+  const scoresCol = collection(db, "scores");
+  const statsRef = (uid) => doc(db, "userStats", uid);
 
-    async function startRun({ uid, name }) {
-      const ref = await addDoc(runsCol, {
-        uid,
-        name,
-        status: "playing",
-        startAt: serverTimestamp(),
-        createdAt: serverTimestamp()
-      });
-      return ref.id;
+  // ================= Leaderboard =================
+  async function submitScore({ uid, name, time, killedBy }) {
+    await addDoc(scoresCol, {
+      uid,
+      name,
+      time,
+      killedBy,
+      createdAt: serverTimestamp(),
+    });
+  }
+
+  async function fetchTop(n = 10) {
+    const q = query(scoresCol, orderBy("time", "desc"), limit(n));
+    const snap = await getDocs(q);
+    return snap.docs.map(d => d.data());
+  }
+
+  async function fetchBottom(n = 5) {
+    const q = query(scoresCol, orderBy("time", "asc"), limit(n));
+    const snap = await getDocs(q);
+    return snap.docs.map(d => d.data());
+  }
+
+  // ================= User stats =================
+  async function readMyStats(uid) {
+    const snap = await getDoc(statsRef(uid));
+    return snap.exists()
+      ? snap.data()
+      : { gamesPlayed: 0, totalTime: 0, bestTime: 0 };
+  }
+
+  async function updateMyStats(uid, timeSec) {
+    await runTransaction(db, async (tx) => {
+      const ref = statsRef(uid);
+      const snap = await tx.get(ref);
+      const cur = snap.exists()
+        ? snap.data()
+        : { gamesPlayed: 0, totalTime: 0, bestTime: 0 };
+
+      tx.set(ref, {
+        gamesPlayed: cur.gamesPlayed + 1,
+        totalTime: cur.totalTime + timeSec,
+        bestTime: Math.max(cur.bestTime, timeSec),
+        updatedAt: serverTimestamp(),
+      }, { merge: true });
+    });
+  }
+
+  // ================= Auth =================
+  async function loginOrRegister({ email, password, displayName }) {
+    try {
+      return (await signInWithEmailAndPassword(auth, email, password)).user;
+    } catch {
+      const cred = await createUserWithEmailAndPassword(auth, email, password);
+      if (displayName) await updateProfile(cred.user, { displayName });
+      return cred.user;
     }
+  }
 
-    async function finishRun({ runId }) {
-      await updateDoc(doc(db, "runs", runId), {
-        status: "finished",
-        endAt: serverTimestamp()
-      });
-    }
+  // ================= Expose to window =================
+  window.fbauth = { auth, onAuthStateChanged, loginOrRegister };
+  window.fbscores = {
+    submitScore,
+    fetchTop,
+    fetchBottom,
+    readMyStats,
+    updateMyStats,
+  };
 
-    function waitRunDuration(runId, timeoutMs = 8000) {
-      return new Promise((resolve, reject) => {
-        const t0 = Date.now();
-        const unsub = onSnapshot(doc(db, "runs", runId), (snap) => {
-          const d = snap.data();
-          if (d?.durationMs > 0) {
-            unsub();
-            resolve(d.durationMs);
-          }
-          if (Date.now() - t0 > timeoutMs) {
-            unsub();
-            reject("timeout");
-          }
-        });
-      });
-    }
-
-    async function fetchTopRuns(n = 10) {
-      const qy = query(scoresCol, orderBy("time", "desc"), limit(n));
-      const snap = await getDocs(qy);
-      return snap.docs.map(d => d.data());
-    }
-
-    /* ================= User stats ================= */
-    const statsRef = (uid) => doc(db, "userStats", uid);
-
-    async function readMyStats(uid) {
-      const s = await getDoc(statsRef(uid));
-      return s.exists() ? s.data() : { gamesPlayed: 0, totalTime: 0, bestTime: 0 };
-    }
-
-    /* ================= Auth ================= */
-    async function loginOrRegister({ email, password, displayName }) {
-      try {
-        return (await signInWithEmailAndPassword(auth, email, password)).user;
-      } catch {
-        const cred = await createUserWithEmailAndPassword(auth, email, password);
-        if (displayName) await updateProfile(cred.user, { displayName });
-        return cred.user;
-      }
-    }
-
-    window.fbauth = { auth, onAuthStateChanged, loginOrRegister };
-    window.fbscores = {
-      startRun, finishRun, waitRunDuration,
-      fetchTopRuns,
-      readMyStats
-    };
-  </script>
+  console.log("Firebase module loaded", window.fbscores);
+</script>
 
   <script src="main.js"></script>
 </body>

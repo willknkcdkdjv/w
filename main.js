@@ -74,7 +74,7 @@
   const bestList = document.getElementById("bestList");
   const bestList2 = document.getElementById("bestList2");
 
-  // 兼容：同頁多個相同 id（不推薦，但先救你）
+  // 兼容：menu 用 accountName/bestTime/...；gameover 用 accountName2/bestTime2/...
   const allById = (id) => Array.from(document.querySelectorAll(`[id="${id}"]`));
   const accountNameEls = allById("accountName").concat(allById("accountName2"));
   const bestTimeEls = allById("bestTime").concat(allById("bestTime2"));
@@ -181,9 +181,6 @@
   let currentUser = null;
   let bestGlobalCached = 0;
 
-  // Blaze 才能用的 server-run（若不存在，會自動 fallback）
-  let currentRunId = null;
-
   function renderAccountSummaryFromCloud(s) {
     if (!currentUser) return;
 
@@ -210,7 +207,8 @@
       const li = document.createElement("li"); // ✅ list-item → marker 會顯示
       li.className = "lb-item";
 
-      const row = document.createElement("div"); // ✅ 內層排版用 flex
+      // 內層排版：不破壞 marker
+      const row = document.createElement("div");
       row.className = "lb-row";
 
       const nameEl = document.createElement("span");
@@ -229,24 +227,12 @@
   }
 
   async function refreshCloudLeaderboard() {
+    if (!window.fbscores?.fetchTop) return;
     try {
-      // Blaze 有 fetchTopRuns
-      if (window.fbscores?.fetchTopRuns) {
-        const top10 = await window.fbscores.fetchTopRuns(10);
-        setLeaderboard(bestList, top10);
-        setLeaderboard(bestList2, top10);
-        bestGlobalCached = (top10?.[0]?.time || 0);
-        return;
-      }
-
-      // 免費 fallback：直接用你原本 scores collection 的 fetchTop
-      if (window.fbscores?.fetchTop) {
-        const top10 = await window.fbscores.fetchTop(10);
-        setLeaderboard(bestList, top10);
-        setLeaderboard(bestList2, top10);
-        bestGlobalCached = (top10?.[0]?.time || 0);
-        return;
-      }
+      const top10 = await window.fbscores.fetchTop(10);
+      setLeaderboard(bestList, top10);
+      setLeaderboard(bestList2, top10);
+      bestGlobalCached = (top10?.[0]?.time || 0);
     } catch (e) {
       console.warn("Cloud leaderboard failed:", e);
     }
@@ -331,16 +317,13 @@
     if (state !== STATE.PLAYING) return;
     runInvalid = true;
 
-    // UI
+    // 直接結束，不上傳
     if (finalTimeEl) finalTimeEl.textContent = ((performance.now() - runStartPerf) / 1000).toFixed(2);
     if (killedByEl) {
       killedByEl.textContent = `Kill by ${reason}`;
       killedByEl.style.color = "#1e1e1e";
     }
     if (recordEl) recordEl.classList.add("hidden");
-
-    // 不上傳
-    currentRunId = null;
 
     state = STATE.GAMEOVER;
     showPanel(STATE.GAMEOVER);
@@ -418,21 +401,6 @@
 
   async function beginPlaying(ts) {
     resetGame(ts);
-
-    // 尝试 Blaze server-run（没有也没关系）
-    currentRunId = null;
-    if (currentUser?.uid && window.fbscores?.startRun) {
-      try {
-        currentRunId = await window.fbscores.startRun({
-          uid: currentUser.uid,
-          name: currentUser.name || "Player",
-        });
-      } catch (e) {
-        console.warn("startRun failed:", e);
-        currentRunId = null;
-      }
-    }
-
     state = STATE.PLAYING;
     showPanel(STATE.PLAYING);
   }
@@ -504,17 +472,18 @@
     if (state === STATE.PLAYING) {
       if (!player) resetGame(ts);
 
-      // ✅ 反作弊：背景/最小化回來會大跳秒
+      // 防作弊：背景/最小化回來會大跳秒
       const nowPerf = performance.now();
       const dtPerf = nowPerf - lastTickPerf;
       lastTickPerf = nowPerf;
 
+      // 閾值可調：250ms → 切分頁/最小化/卡住時會觸發
       if (dtPerf > 250) {
         invalidateRun("Tab switched / throttled");
         return;
       }
 
-      // elapsed：只用于显示（成績會被 clamp 在連續可見狀態）
+      // elapsed：只用 performance.now（不吃 ts）
       const elapsed = (nowPerf - runStartPerf) / 1000;
 
       spawnMs =
@@ -528,7 +497,7 @@
       if (key.right) player.x += PLAYER_SPEED;
       player.x = clamp(player.x, 0, LOGIC_W - player.w);
 
-      // 用 ts 做生成節奏 OK（不影響分數了）
+      // 用 ts 做生成節奏 OK（不影響分數）
       if (ts - lastSpawnMs >= spawnMs) {
         enemies.push(spawnEnemy(ts));
         lastSpawnMs = ts;
@@ -538,6 +507,7 @@
       let killer = null;
 
       for (const e of enemies) {
+        // sniper warning
         if (e.warning_ms > 0) {
           const t = ts - e.spawn_tick;
           if (t < e.warning_ms) {
@@ -567,6 +537,7 @@
           }
         }
 
+        // normal
         e.y += e.fall_v;
         const dx = clamp(
           (player.x + player.w / 2 - (e.x + e.w / 2)) * e.track_factor,
@@ -599,35 +570,17 @@
           killedByEl.style.color = finalKilledColor;
         }
 
-        // 如果本局無效：直接結束不寫入
+        // 無效局：直接結束，不寫入
         if (runInvalid) return;
 
         (async () => {
-          let finalSec = elapsed;
-
-          // Blaze：server-run 拿 server duration
-          if (currentRunId && window.fbscores?.finishRun && window.fbscores?.waitRunDuration) {
-            try {
-              await window.fbscores.finishRun({ runId: currentRunId });
-              const durationMs = await window.fbscores.waitRunDuration(currentRunId);
-              if (typeof durationMs === "number" && durationMs > 0) finalSec = durationMs / 1000;
-            } catch (e) {
-              console.warn("finishRun/waitRunDuration failed:", e);
-            } finally {
-              currentRunId = null;
-            }
-          } else {
-            // 免費：用 elapsed（已經防 tab 切換大跳秒）
-            currentRunId = null;
-          }
-
-          finalSurvivalSec = finalSec;
+          finalSurvivalSec = elapsed;
           recordBreaking = finalSurvivalSec > (bestGlobalCached || 0);
 
           if (finalTimeEl) finalTimeEl.textContent = finalSurvivalSec.toFixed(2);
           if (recordEl) recordEl.classList.toggle("hidden", !recordBreaking);
 
-          // 免費版：還是可以寫入 Firestore（但只能「弱防」）
+          // ✅ 只寫 scores + userStats（不碰 runs，不影響舊 leaderboard）
           if (currentUser?.uid && window.fbscores?.submitScore && window.fbscores?.updateMyStats) {
             try {
               await window.fbscores.submitScore({
